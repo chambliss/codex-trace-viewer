@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Codex Trace Viewer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Exo:wght@600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <link rel="stylesheet" href="/styles.css?v=20260216-release-1" />
+  </head>
+  <body>
+    <div class="ambient ambient-a"></div>
+    <div class="ambient ambient-b"></div>
+
+    <header class="topbar">
+      <div class="topbar-title-wrap">
+        <h1>Codex Trace Viewer</h1>
+        <p>Deep local inspection of sessions, tools, context, and token arc behavior</p>
+      </div>
+      <div class="topbar-controls">
+        <label class="search-wrap" for="conversation-search">
+          <span>Find</span>
+          <input id="conversation-search" type="search" placeholder="Search by title, cwd, id, or text" />
+        </label>
+        <label class="toggle-wrap" for="show-archived">
+          <input id="show-archived" type="checkbox" checked />
+          <span>Archived</span>
+        </label>
+        <button id="refresh-button" type="button">Refresh</button>
+      </div>
+    </header>
+
+    <div class="app-layout">
+      <aside class="sidebar panel">
+        <div class="panel-header compact">
+          <h2>Conversations</h2>
+          <span id="conversation-count">0</span>
+        </div>
+        <div id="conversation-list" class="conversation-list"></div>
+      </aside>
+
+      <main class="main-column tools-hidden">
+        <section class="panel conversation-header-panel">
+          <div class="conversation-header-main">
+            <h2 id="conversation-title">Loading conversations...</h2>
+            <p id="conversation-meta"></p>
+          </div>
+          <div id="conversation-stats-inline" class="conversation-stats-inline"></div>
+          <div id="conversation-chips" class="chip-row"></div>
+        </section>
+
+        <section class="panel token-panel">
+          <div class="panel-header token-header">
+            <h3>Token Arc + Compaction Triggers</h3>
+            <div id="token-insights" class="token-insights"></div>
+          </div>
+          <div class="token-visual-wrap">
+            <div id="token-chart" class="token-chart"></div>
+          </div>
+        </section>
+
+        <section class="panel analytics-panel" hidden aria-hidden="true">
+          <div class="panel-header analytics-header">
+            <h3>Tool Usage Patterns</h3>
+            <div id="analytics-scope-toggle" class="analytics-scope-toggle"></div>
+          </div>
+          <p id="analytics-summary" class="analytics-summary text-muted"></p>
+          <div id="analytics-grid" class="analytics-grid"></div>
+        </section>
+
+        <section class="lower-grid">
+          <div class="panel timeline-panel">
+            <div class="panel-header timeline-header">
+              <h3>Event Timeline</h3>
+              <div class="timeline-controls">
+                <div id="timeline-mode-toggle" class="timeline-mode-toggle"></div>
+                <div id="event-filter-row" class="event-filter-row"></div>
+              </div>
+            </div>
+            <div id="event-list" class="event-list"></div>
+          </div>
+
+          <div class="panel detail-panel">
+            <div class="panel-header">
+              <h3>Event Detail</h3>
+              <span id="detail-meta"></span>
+            </div>
+            <div id="detail-rendered" class="detail-rendered"></div>
+            <div class="raw-controls">
+              <button id="toggle-raw-json" type="button" hidden>Show Raw JSON</button>
+              <button id="load-full-json" type="button" hidden>Load Full JSON</button>
+            </div>
+            <pre id="detail-raw" class="detail-raw"></pre>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="/app.js?v=20260216-release-1"></script>
+  </body>
+</html>
