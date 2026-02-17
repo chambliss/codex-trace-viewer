@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT_DIR"
 
 HOST="127.0.0.1"
@@ -35,7 +35,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-CMD=(uv run python trace_viewer/server.py --host "$HOST" --port "$PORT")
+CMD=(uv run python server.py --host "$HOST" --port "$PORT")
 if [[ -n "$OPEN_FLAG" ]]; then
   CMD+=("$OPEN_FLAG")
 fi
