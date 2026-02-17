@@ -11,7 +11,7 @@ Codex Trace Viewer helps inspect local Codex session traces end-to-end: conversa
 
 ```bash
 cd /path/to/codex-trace-viewer
-./trace_viewer/run.sh
+./run.sh
 ```
 
 By default it starts at `http://127.0.0.1:8123` and opens your browser with the most recent conversation selected.
@@ -19,9 +19,9 @@ By default it starts at `http://127.0.0.1:8123` and opens your browser with the 
 ## Optional flags
 
 ```bash
-./trace_viewer/run.sh --port 9000
-./trace_viewer/run.sh --host 0.0.0.0 --no-open
-./trace_viewer/run.sh --codex-home /path/to/.codex
+./run.sh --port 9000
+./run.sh --host 0.0.0.0 --no-open
+./run.sh --codex-home /path/to/.codex
 ```
 
 ## Security notes
@@ -40,4 +40,4 @@ There are currently no external library dependencies (it's vanilla HTML/CSS/JS a
 
 The monospace font shown in the screenshot is [MonoLisa](https://www.monolisa.dev/), which I personally use and enjoy, but also has fallbacks. You can also just change it to your monospace font of choice.
 
-Included script `run.sh` expects `uv`, but you can also run it with plain Python (`python trace_viewer/server.py`).
+Included script `run.sh` expects `uv`, but you can also run it with plain Python (`python server.py --open`).
