@@ -60,6 +60,7 @@ class ConversationSummary:
     type_counts: dict[str, int]
     event_type_counts: dict[str, int]
     response_type_counts: dict[str, int]
+    tool_analytics_counts: dict[str, Any]
 
     def to_api_dict(self) -> dict[str, Any]:
         return {
@@ -712,6 +713,7 @@ class RolloutStore:
         token_samples = 0
         max_total_tokens = 0
         prev_context_tokens: int | None = None
+        tool_analytics_counts = new_tool_analytics_counts()
 
         try:
             with path.open("r", encoding="utf-8") as handle:
@@ -798,6 +800,9 @@ class RolloutStore:
                     elif top_type == "response_item":
                         if isinstance(subtype, str):
                             response_type_counts[subtype] += 1
+                            update_tool_analytics_counts_from_response_item(
+                                tool_analytics_counts, payload, subtype
+                            )
                         if (
                             not first_user_message
                             and subtype == "message"
@@ -876,6 +881,7 @@ class RolloutStore:
             type_counts=dict(type_counts),
             event_type_counts=dict(event_type_counts),
             response_type_counts=dict(response_type_counts),
+            tool_analytics_counts=tool_analytics_counts,
         )
 
     def list_conversations(
@@ -925,11 +931,8 @@ class RolloutStore:
 
         conversations = self.list_conversations(include_archived=include_archived)
         for summary in conversations:
-            parsed = self.parse_conversation(summary.id)
-            if parsed is None:
-                continue
             analyzed_threads += 1
-            merge_tool_analytics_counts(combined, parsed.tool_analytics_counts)
+            merge_tool_analytics_counts(combined, summary.tool_analytics_counts)
 
         return serialize_tool_analytics(combined, threads_analyzed=analyzed_threads, limit=limit)
 

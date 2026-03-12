@@ -34,9 +34,15 @@ const state = {
   selectedEventIndex: null,
   selectedTimelineEntryId: null,
   timelineEntries: [],
+  timelineEntryLookup: new Map(),
+  timelineEntryCache: new Map(),
   timelineMode: loadTimelineMode(),
   analyticsScope: loadAnalyticsScope(),
   globalToolAnalytics: null,
+  globalToolAnalyticsIncludeArchived: null,
+  globalToolAnalyticsStatus: "idle",
+  globalToolAnalyticsRequestId: 0,
+  activeConversationRequestId: 0,
   rawJsonExpanded: false,
   activeFilters: new Set(CATEGORY_ORDER),
   collapsedConversationGroups: loadCollapsedConversationGroups(),
@@ -540,13 +546,13 @@ function bindEventHandlers() {
     if (!row) return;
     const entryId = row.dataset.entryId;
     if (!entryId) return;
-    const entry = state.timelineEntries.find((item) => item.id === entryId);
+    const entry = state.timelineEntryLookup.get(entryId);
     if (!entry) return;
     await selectTimelineEntry(entry, false);
   });
 
   refs.loadFullJson.addEventListener("click", async () => {
-    const selectedEntry = state.timelineEntries.find((item) => item.id === state.selectedTimelineEntryId);
+    const selectedEntry = state.timelineEntryLookup.get(state.selectedTimelineEntryId);
     if (!selectedEntry) return;
     await selectTimelineEntry(selectedEntry, true);
   });
@@ -576,16 +582,9 @@ async function bootstrap(forceReload = false) {
   try {
     const includeArchived = refs.showArchived.checked ? "1" : "0";
     const data = await fetchJson(`/api/bootstrap?include_archived=${includeArchived}`);
-    if (forceReload || !state.globalToolAnalytics) {
-      try {
-        state.globalToolAnalytics = await fetchJson(`/api/tool-analytics?include_archived=${includeArchived}`);
-      } catch {
-        state.globalToolAnalytics = null;
-      }
-    }
-
     state.conversations = data.conversations || [];
     renderConversationList();
+    void loadGlobalToolAnalytics(includeArchived, forceReload);
 
     if (!state.conversations.length) {
       state.activeConversationId = null;
@@ -610,9 +609,53 @@ async function bootstrap(forceReload = false) {
       }
     }
 
-    await loadConversation(targetConversationId);
+    renderConversationLoadingState(targetConversationId);
+    window.requestAnimationFrame(() => {
+      loadConversation(targetConversationId).catch((error) => {
+        renderFatalError(error);
+      });
+    });
   } catch (error) {
     renderFatalError(error);
+  }
+}
+
+async function loadGlobalToolAnalytics(includeArchived, forceReload = false) {
+  if (
+    !forceReload &&
+    state.globalToolAnalytics &&
+    state.globalToolAnalyticsIncludeArchived === includeArchived
+  ) {
+    if (state.analyticsScope === "global") {
+      renderToolAnalyticsPanel();
+    }
+    return state.globalToolAnalytics;
+  }
+
+  const requestId = state.globalToolAnalyticsRequestId + 1;
+  state.globalToolAnalyticsRequestId = requestId;
+  state.globalToolAnalyticsStatus = "loading";
+  if (state.analyticsScope === "global") {
+    renderToolAnalyticsPanel();
+  }
+
+  try {
+    const analytics = await fetchJson(`/api/tool-analytics?include_archived=${includeArchived}`);
+    if (requestId !== state.globalToolAnalyticsRequestId) {
+      return null;
+    }
+    state.globalToolAnalytics = analytics;
+    state.globalToolAnalyticsIncludeArchived = includeArchived;
+    state.globalToolAnalyticsStatus = "ready";
+    renderToolAnalyticsPanel();
+    return analytics;
+  } catch {
+    if (requestId !== state.globalToolAnalyticsRequestId) {
+      return null;
+    }
+    state.globalToolAnalyticsStatus = "error";
+    renderToolAnalyticsPanel();
+    return null;
   }
 }
 
@@ -753,6 +796,8 @@ function renderConversationList() {
 
 function renderEmptyMain() {
   state.timelineEntries = [];
+  state.timelineEntryLookup = new Map();
+  state.timelineEntryCache.clear();
   state.selectedTimelineEntryId = null;
   state.selectedEventIndex = null;
   state.rawJsonExpanded = false;
@@ -773,15 +818,51 @@ function renderEmptyMain() {
   refs.loadFullJson.hidden = true;
 }
 
+function renderConversationLoadingState(conversationId) {
+  const conversation = state.conversations.find((item) => item.id === conversationId) || null;
+  state.activeConversationId = conversationId;
+  state.activeConversationData = null;
+  state.timelineEntries = [];
+  state.timelineEntryLookup = new Map();
+  state.timelineEntryCache.clear();
+  state.detailCache.clear();
+  state.selectedEventIndex = null;
+  state.selectedTimelineEntryId = null;
+  state.rawJsonExpanded = false;
+
+  renderConversationList();
+  refs.conversationTitle.textContent = conversation?.title || "Loading conversation...";
+  refs.conversationMeta.textContent = "Loading conversation timeline and details...";
+  refs.conversationStatsInline.innerHTML = "";
+  refs.conversationChips.innerHTML = "";
+  refs.tokenChart.innerHTML = `<p class="chart-empty">Loading token chart...</p>`;
+  refs.tokenInsights.innerHTML = "";
+  renderToolAnalyticsPanel();
+  refs.eventList.innerHTML = `<p class="text-muted">Loading events...</p>`;
+  refs.detailMeta.textContent = "";
+  refs.detailRendered.innerHTML = `<p class="text-muted">Loading event detail...</p>`;
+  refs.detailRaw.innerHTML = "";
+  refs.detailRaw.classList.add("collapsed");
+  refs.toggleRawJson.hidden = true;
+  refs.loadFullJson.hidden = true;
+}
+
 async function loadConversation(conversationId) {
   if (!conversationId) return;
 
+  const requestId = state.activeConversationRequestId + 1;
+  state.activeConversationRequestId = requestId;
   const data = await fetchJson(`/api/conversations/${conversationId}/events`);
+  if (requestId !== state.activeConversationRequestId) {
+    return;
+  }
   state.activeConversationId = conversationId;
   state.activeConversationData = data;
   state.selectedEventIndex = pickInitialEventIndex();
   state.selectedTimelineEntryId = null;
   state.timelineEntries = [];
+  state.timelineEntryLookup = new Map();
+  state.timelineEntryCache.clear();
   state.detailCache.clear();
 
   setConversationQuery(conversationId);
@@ -1094,6 +1175,18 @@ function resolveCurrentAnalytics() {
 
 function renderToolAnalyticsPanel() {
   const analytics = resolveCurrentAnalytics();
+  if (state.analyticsScope === "global" && state.globalToolAnalyticsStatus === "loading" && !analytics) {
+    refs.analyticsSummary.textContent = "Loading global tool analytics...";
+    refs.analyticsGrid.innerHTML = "";
+    return;
+  }
+
+  if (state.analyticsScope === "global" && state.globalToolAnalyticsStatus === "error" && !analytics) {
+    refs.analyticsSummary.textContent = "Global tool analytics failed to load.";
+    refs.analyticsGrid.innerHTML = "";
+    return;
+  }
+
   if (!analytics) {
     refs.analyticsSummary.textContent = "No tool analytics available yet.";
     refs.analyticsGrid.innerHTML = "";
@@ -1118,6 +1211,11 @@ function renderToolAnalyticsPanel() {
 function getFilteredEvents() {
   const allEvents = state.activeConversationData?.events || [];
   return allEvents.filter((event) => state.activeFilters.has(event.category));
+}
+
+function getTimelineCacheKey() {
+  const filterMask = CATEGORY_ORDER.map((category) => (state.activeFilters.has(category) ? "1" : "0")).join("");
+  return `${state.timelineMode}:${filterMask}`;
 }
 
 function normalizeSemanticText(value) {
@@ -1320,6 +1418,18 @@ function buildTimelineEntries(events) {
   return buildSemanticTimelineEntries(events);
 }
 
+function getTimelineEntriesForCurrentState() {
+  const cacheKey = getTimelineCacheKey();
+  const cached = state.timelineEntryCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const entries = buildTimelineEntries(getFilteredEvents());
+  state.timelineEntryCache.set(cacheKey, entries);
+  return entries;
+}
+
 function resolveSelectedTimelineEntry(entries) {
   if (!entries.length) return null;
 
@@ -1334,10 +1444,24 @@ function resolveSelectedTimelineEntry(entries) {
   return entries[0];
 }
 
+function applyTimelineSelection(previousEntryId, nextEntryId) {
+  if (previousEntryId && previousEntryId !== nextEntryId) {
+    refs.eventList
+      .querySelector(`.event-row[data-entry-id="${CSS.escape(previousEntryId)}"]`)
+      ?.classList.remove("selected");
+  }
+
+  if (nextEntryId) {
+    refs.eventList
+      .querySelector(`.event-row[data-entry-id="${CSS.escape(nextEntryId)}"]`)
+      ?.classList.add("selected");
+  }
+}
+
 function renderEventList() {
-  const events = getFilteredEvents();
-  const entries = buildTimelineEntries(events);
+  const entries = getTimelineEntriesForCurrentState();
   state.timelineEntries = entries;
+  state.timelineEntryLookup = new Map(entries.map((entry) => [entry.id, entry]));
   refs.eventList.innerHTML = "";
 
   if (!entries.length) {
@@ -1462,12 +1586,13 @@ async function loadTimelineEntryDetail(entry, fullMode) {
 }
 
 async function selectTimelineEntry(entry, fullMode) {
+  const previousEntryId = state.selectedTimelineEntryId;
   state.selectedTimelineEntryId = entry.id;
   state.selectedEventIndex = entry.primaryIndex;
   if (!fullMode) {
     state.rawJsonExpanded = false;
   }
-  renderEventList();
+  applyTimelineSelection(previousEntryId, entry.id);
 
   const bundle = await loadTimelineEntryDetail(entry, fullMode);
   renderTimelineEntryDetail(bundle);
